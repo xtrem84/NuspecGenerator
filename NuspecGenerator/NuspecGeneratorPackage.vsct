@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <Extern href="stdidcmd.h"/>
+  <Extern href="vsshlids.h"/>
+  <Commands package="guidNuspecGeneratorPackage">
+    <Groups>
+      <Group guid="guidNuspecGeneratorPackageCmdSet" id="NuspecGeneratorGroup" priority="0x0300">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_PROJNODE"/>
+      </Group>
+    </Groups>
+    <Buttons>
+      <Button guid="guidNuspecGeneratorPackageCmdSet" id="CommandId" priority="0x0100" type="Button">
+        <Parent guid="guidNuspecGeneratorPackageCmdSet" id="NuspecGeneratorGroup" />
+        <Icon guid="guidImages" id="bmpPic" />
+        <Strings>
+          <ButtonText>Generate or update .nuspec</ButtonText>
+        </Strings>
+      </Button>
+    </Buttons>
+    <Bitmaps>
+      <Bitmap guid="guidImages" href="Resources\command.png" usedList="bmpPic"/>
+    </Bitmaps>
+  </Commands>
+  <Symbols>
+    <GuidSymbol name="guidNuspecGeneratorPackage" value="{1a6861a1-ce0b-40bc-8c9c-dd4a2bbb509a}" />
+    <GuidSymbol name="guidNuspecGeneratorPackageCmdSet" value="{21c3ed1d-dcfb-4145-ab59-1db105d28c68}">
+      <IDSymbol name="NuspecGeneratorGroup" value="0x1020" />
+      <IDSymbol name="CommandId" value="0x0100" />
+    </GuidSymbol>
+    <GuidSymbol name="guidImages" value="{24686238-2cd1-4396-99e4-6e0ffa63caee}" >
+      <IDSymbol name="bmpPic" value="1" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>
