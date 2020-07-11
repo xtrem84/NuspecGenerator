@@ -1,10 +1,10 @@
 # NuspecGenerator
 
 
-[![Build status](https://ci.appveyor.com/api/projects/status/xxxxxxxxxxx?svg=true)](https://ci.appveyor.com/project/afaqkhan/)
+[![Build status](https://ci.appveyor.com/api/projects/status/y3ihiyglunswbjqw?svg=true)](https://ci.appveyor.com/project/afaq-khan/nuspecgenerator)
 
 Download this extension from the [Visual Studio Marketplace](http://vsixgallery.com/extension/)
-or get the [CI build](http://vsixgallery.com/extension/).
+or get the [CI build](https://www.vsixgallery.com/extension/bb82e765-ab80-4b8b-a93c-3aa7399ee392).
 
 ---------------------------------------
 
