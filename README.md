@@ -28,6 +28,11 @@ Then click on "Generate or update .nuspec" in the menu. A .nuspec file will be g
 Check out the [contribution guidelines](CONTRIBUTING.md)
 if you want to contribute to this project.
 
+For cloning and building this project yourself, make sure
+to install the
+[Extensibility Essentials 2019](https://marketplace.visualstudio.com/items?itemName=MadsKristensen.ExtensibilityEssentials2019)
+extension for Visual Studio which enables some features
+used by this project.
 
 ## License
 [MIT](LICENSE)
