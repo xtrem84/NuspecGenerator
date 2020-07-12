@@ -116,12 +116,12 @@ namespace NuspecGenerator
 
                 if (nuspecFile == null)
                 {
-                    Logger.Log("Adding Nuspec projectFile...");
+                    Logger.Log("Adding .nuspec file...");
                     AddNuspecFileToProject(project);
                 }
                 else
                 {
-                    Logger.Log("Updating Nuspec projectFile...");
+                    Logger.Log("Updating .nuspec file...");
                     UpdateNuspecFile(project.FileName, nuspecFile);
                 }
 
