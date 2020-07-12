@@ -1,6 +1,6 @@
 # Road map
 
-- [ ] Coming Soon...
+- [ ] Visual Studio 2017 support
 
 Features that have a checkmark are complete and available for
 download in the
