@@ -11,7 +11,13 @@ download in the
 These are the changes to each version that have been released
 on the official Visual Studio Marketplace.
 
-## 1.0
+## 1.0.2
+
+**2020-07-15**
+
+- [x] Minor bugfixes
+
+## 1.0.0
 
 **2020-07-11**
 
