@@ -11,7 +11,7 @@
         <PreviewImage>Resources\icon.png</PreviewImage>
         <Tags>nuget, nuspec, generate, update, dependencies, package, references</Tags>
     </Metadata>
-    <Installation AllUsers="true">
+    <Installation>
         <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[16.0, 17.0)" />
     </Installation>
     <Dependencies>
