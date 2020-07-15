@@ -19,18 +19,16 @@ namespace NuspecGenerator
     [SuppressMessage("Usage", "VSTHRD010:Invoke single-threaded types on Main thread", Justification = "<Pending>")]
     internal sealed class GenerateNuspecCommand
     {
-        public const int CommandId = 0x0100;
-        public const string NuspecFileName = ".nuspec";
-        public const string AssemblyInfoFileName = "AssemblyInfo.cs";
-        public const string PackagesConfigFileName = "packages.config";
-        public const string CSharpProjectTypeGuid = "{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}";
+        private const int CommandId = 0x0100;
+        private const string NuspecFileName = ".nuspec";
+        private const string NuspecNamespace = "http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd";
+        private const string AssemblyInfoFileName = "AssemblyInfo.cs";
+        private const string PackagesConfigFileName = "packages.config";
+        private const string CSharpProjectTypeGuid = "{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}";
 
-        public static readonly Guid CommandSet = new Guid("21c3ed1d-dcfb-4145-ab59-1db105d28c68");
+        private static readonly Guid CommandSet = new Guid("21c3ed1d-dcfb-4145-ab59-1db105d28c68");
 
         public DTE2 Dte2;
-
-        public static GenerateNuspecCommand Instance { get; private set; }
-
 
         private GenerateNuspecCommand(OleMenuCommandService commandService, DTE2 dte2)
         {
@@ -42,22 +40,23 @@ namespace NuspecGenerator
             commandService.AddCommand(menuCommand);
         }
 
-        private static void AddNuspecFileToProject(Project project)
+        public static GenerateNuspecCommand Instance { get; private set; }
+
+        public static async Task InitializeAsync(AsyncPackage package)
         {
-            var packagesConfigFile =
-                ProjectHelper.GetFile(Path.GetDirectoryName(project.FileName), PackagesConfigFileName) != null;
+            var dte2 = await package.GetServiceAsync(typeof(DTE)) as DTE2;
+            var commandService = await package.GetServiceAsync(typeof(IMenuCommandService)) as OleMenuCommandService;
+            Instance = new GenerateNuspecCommand(commandService, dte2);
+        }
 
-            if (packagesConfigFile)
-            {
-                Logger.Log("The packages.config method is not supported, migrate to PackageReference first.");
-                return;
-            }
-
+        private static string GenerateNuspecFile(Project project)
+        {
+            Logger.Log("Generating .nuspec file...");
             var package = CreatePackage(project.FileName);
             var nuspecFilePath = Path.Combine(Path.GetDirectoryName(project.FileName)!, NuspecFileName);
 
             GenerateXml(package, nuspecFilePath);
-            project.ProjectItems.AddFromFile(nuspecFilePath);
+            return nuspecFilePath;
         }
 
         private static package CreatePackage(string projectFile)
@@ -97,34 +96,22 @@ namespace NuspecGenerator
             try
             {
                 var project = ProjectHelper.GetSelectedProject();
-                var hierarchy = ProjectHelper.GetProjectHierarchy(project);
-
-                if (project == null ||
-                    !project.Kind.Equals(CSharpProjectTypeGuid, StringComparison.InvariantCultureIgnoreCase) ||
-                    ProjectHelper.IsCpsProject(hierarchy))
-                {
-                    var messsage = project == null
-                        ? "No or multiple project files selected, select one project."
-                        : "Project type is not supported.";
-                    Logger.Log(messsage);
-                    return;
-                }
-
                 project.Save();
+
+                if (!IsSupported(project)) return;
 
                 var nuspecFile = ProjectHelper.GetFile(Path.GetDirectoryName(project.FileName), NuspecFileName);
 
                 if (nuspecFile == null)
                 {
-                    Logger.Log("Adding .nuspec file...");
-                    AddNuspecFileToProject(project);
+                    nuspecFile = GenerateNuspecFile(project);
                 }
                 else
                 {
-                    Logger.Log("Updating .nuspec file...");
                     UpdateNuspecFile(project.FileName, nuspecFile);
                 }
 
+                project.ProjectItems.AddFromFile(nuspecFile);
                 Logger.Log("Done.");
             }
             catch (Exception ex)
@@ -182,23 +169,58 @@ namespace NuspecGenerator
             return tokens;
         }
 
-        public static async Task InitializeAsync(AsyncPackage package)
+        private static bool IsSupported(Project project)
         {
-            var dte2 = await package.GetServiceAsync(typeof(DTE)) as DTE2;
-            var commandService = await package.GetServiceAsync(typeof(IMenuCommandService)) as OleMenuCommandService;
-            Instance = new GenerateNuspecCommand(commandService, dte2);
+            var hierarchy = ProjectHelper.GetProjectHierarchy(project);
+
+            if (project == null)
+            {
+                Logger.Log("No or multiple project files selected, select one project.");
+                return false;
+            }
+
+            if (!project.Kind.Equals(CSharpProjectTypeGuid, StringComparison.InvariantCultureIgnoreCase) ||
+                ProjectHelper.IsCpsProject(hierarchy))
+            {
+                Logger.Log("Project type is not supported.");
+                return false;
+            }
+
+            var packagesConfigFile =
+                ProjectHelper.GetFile(Path.GetDirectoryName(project.FileName), PackagesConfigFileName) != null;
+
+            if (packagesConfigFile)
+            {
+                Logger.Log("The packages.config method is not supported, migrate to PackageReference first.");
+                return false;
+            }
+
+            return true;
+        }
+
+        private static XDocument UpdateNamespace(XDocument xDocument, XNamespace xNamespace)
+        {
+            foreach (var xElement in xDocument.Descendants())
+            {
+                xElement.SetAttributeValue("xmlns", xNamespace.NamespaceName);
+                xElement.Name = xNamespace + xElement.Name.LocalName;
+            }
+
+            return xDocument;
         }
 
         private static void UpdateNuspecFile(string projectFile, string nuspecFilePath)
         {
+            Logger.Log("Updating .nuspec file...");
             var package = UpdatePackage(projectFile, nuspecFilePath);
             GenerateXml(package, nuspecFilePath);
         }
 
         private static package UpdatePackage(string projectFile, string nuspecFilePath)
         {
-            var xml = XDocument.Load(nuspecFilePath).ToString();
-            var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(xml));
+            var xml = XDocument.Load(nuspecFilePath);
+            xml = UpdateNamespace(xml, NuspecNamespace);
+            var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(xml.ToString()));
             var xmlTextReader = new XmlTextReader(memoryStream) {Namespaces = true};
             var xmlSerializer = new XmlSerializer(typeof(package));
             var tokens = GetTokens(Path.GetDirectoryName(projectFile),
@@ -243,7 +265,7 @@ namespace NuspecGenerator
                 : package.metadata.copyright;
 
             package.metadata.dependencies =
-                packageMetadata.dependencies.Items.Length == 0 ? null : packageMetadata.dependencies;
+                packageMetadata?.dependencies?.Items.Length == 0 ? null : packageMetadata?.dependencies;
 
             return package;
         }
