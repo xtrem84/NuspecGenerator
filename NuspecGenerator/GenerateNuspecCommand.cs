@@ -22,10 +22,6 @@ namespace NuspecGenerator
         private const int CommandId = 0x0100;
         private const string NuspecFileName = ".nuspec";
         private const string NuspecNamespace = "http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd";
-        private const string AssemblyInfoFileName = "AssemblyInfo.cs";
-        private const string PackagesConfigFileName = "packages.config";
-        private const string CSharpProjectTypeGuid = "{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}";
-
         private static readonly Guid CommandSet = new Guid("21c3ed1d-dcfb-4145-ab59-1db105d28c68");
 
         public DTE2 Dte2;
@@ -52,19 +48,19 @@ namespace NuspecGenerator
         private static string GenerateNuspecFile(Project project)
         {
             Logger.Log("Generating .nuspec file...");
-            var package = CreatePackage(project.FileName);
+            var package = CreatePackage(project);
             var nuspecFilePath = Path.Combine(Path.GetDirectoryName(project.FileName)!, NuspecFileName);
 
             GenerateXml(package, nuspecFilePath);
             return nuspecFilePath;
         }
 
-        private static package CreatePackage(string projectFile)
+        private static package CreatePackage(Project project)
         {
-            var packageReferences = ProjectHelper.GetPackageReferences(projectFile);
+            var packageReferences = ProjectHelper.GetPackageReferences(project.FileName);
             var dependencies = GetDependencies(packageReferences);
-            var tokens = GetTokens(Path.GetDirectoryName(projectFile),
-                new[] {Path.GetFileName(projectFile), AssemblyInfoFileName});
+            var tokens = GetTokens(Path.GetDirectoryName(project.FileName),
+                new[] { Path.GetFileName(project.FileName), ProjectHelper.GetAssemblyFileName(project) });
 
             var package = new package
             {
@@ -77,18 +73,37 @@ namespace NuspecGenerator
         private static packageMetadata CreatePackageMetadata(IReadOnlyDictionary<string, string> tokens,
             packageMetadataDependencies dependencies)
         {
-            return new packageMetadata
+            var pck = new packageMetadata();
+
+            if (!CheckField("id", tokens)) return null;
+            if (!CheckField("description", tokens)) return null;
+            if (!CheckField("version", tokens)) return null;
+            if (!CheckField("authors", tokens)) return null;
+
+            pck.id = tokens["id"];
+            pck.version = tokens["version"];
+            pck.authors = tokens["authors"];
+            pck.description = tokens["description"];
+            pck.copyright = !string.IsNullOrEmpty(tokens["copyright"]) ? tokens["copyright"] : "$copyright$";
+            pck.title = !string.IsNullOrEmpty(tokens["title"]) ? tokens["title"] : "$title$";
+            pck.requireLicenseAcceptance = false;
+            pck.dependencies = dependencies.Items.Length == 0 ? null : dependencies;
+
+            return pck;
+        }
+        private static bool CheckField(string fieldName, IReadOnlyDictionary<string, string> tokens)
+        {
+            if (!tokens.ContainsKey(fieldName))
             {
-                id = !string.IsNullOrEmpty(tokens["id"]) ? tokens["id"] : "$id$",
-                version = !string.IsNullOrEmpty(tokens["version"]) ? tokens["version"] : "$version$",
-                authors = !string.IsNullOrEmpty(tokens["author"]) ? tokens["author"] : "$author$",
-                owners = !string.IsNullOrEmpty(tokens["author"]) ? tokens["author"] : "$owners$",
-                title = !string.IsNullOrEmpty(tokens["title"]) ? tokens["title"] : "$title$",
-                description = !string.IsNullOrEmpty(tokens["description"]) ? tokens["description"] : "$description$",
-                copyright = !string.IsNullOrEmpty(tokens["copyright"]) ? tokens["copyright"] : "$copyright$",
-                requireLicenseAcceptance = false,
-                dependencies = dependencies.Items.Length == 0 ? null : dependencies
-            };
+                Logger.Log($"{fieldName} key not found");
+                throw new ArgumentNullException(fieldName);
+            }
+            if (string.IsNullOrEmpty(tokens[fieldName]))
+            {
+                Logger.Log($"{fieldName} is neccesary");
+                throw new ArgumentNullException(fieldName);
+            }
+            return true;
         }
 
         private static void Execute(object sender, EventArgs e)
@@ -98,7 +113,7 @@ namespace NuspecGenerator
                 var project = ProjectHelper.GetSelectedProject();
                 project.Save();
 
-                if (!IsSupported(project)) return;
+                if (!ProjectHelper.IsSupported(project)) return;
 
                 var nuspecFile = ProjectHelper.GetFile(Path.GetDirectoryName(project.FileName), NuspecFileName);
 
@@ -108,7 +123,7 @@ namespace NuspecGenerator
                 }
                 else
                 {
-                    UpdateNuspecFile(project.FileName, nuspecFile);
+                    UpdateNuspecFile(project, nuspecFile);
                 }
 
                 project.ProjectItems.AddFromFile(nuspecFile);
@@ -132,7 +147,7 @@ namespace NuspecGenerator
         {
             var dependencies = new packageMetadataDependencies
             {
-                Items = packageReferences.Select(x => new dependency {id = x.Key, version = x.Value}).ToArray<object>()
+                Items = packageReferences.Select(x => new dependency { id = x.Key, version = x.Value }).ToArray<object>()
             };
             return dependencies;
         }
@@ -140,62 +155,25 @@ namespace NuspecGenerator
         private static Dictionary<string, string> GetTokens(string path, string[] fileNames)
         {
             var lines = ProjectHelper.GetLines(path, fileNames);
+            var tokens = new Dictionary<string, string>();
 
-            var tokens = new Dictionary<string, string>
+            foreach (string line in lines)
             {
-                {"id", Regex.Match(lines, @"<AssemblyName>(.*)<\/AssemblyName>").Groups[1].Value},
-                {
-                    "version",
-                    Regex.Match(lines, @"\n\[assembly:\s*AssemblyInformationalVersion\s*\(\s*""([0-9\.\*]*?)""\s*\)")
-                        .Groups[1].Success
-                        ? Regex.Match(lines,
-                                @"\n\[assembly:\s*AssemblyInformationalVersion\s*\(\s*""([0-9\.\*]*?)""\s*\)").Groups[1]
-                            .Value
-                        : Regex.Match(lines, @"\n\[assembly:\s*AssemblyVersion\s*\(\s*""([0-9\.\*]*?)""\s*\)").Groups[1]
-                            .Value
-                },
-                {"author", Regex.Match(lines, @"\n\[assembly:\s*AssemblyCompany\s*\(\s*""(.*)""\s*\)").Groups[1].Value},
-                {"title", Regex.Match(lines, @"\n\[assembly:\s*AssemblyTitle\s*\(\s*""(.*)""\s*\)").Groups[1].Value},
-                {
-                    "description",
-                    Regex.Match(lines, @"\n\[assembly:\s*AssemblyDescription\s*\(\s*""(.*)""\s*\)").Groups[1].Value
-                },
-                {
-                    "copyright",
-                    Regex.Match(lines, @"\n\[assembly:\s*AssemblyCopyright\s*\(\s*""(.*)""\s*\)").Groups[1].Value
-                }
-            };
-
+                if (line.ToLower().Trim().Contains("AssemblyTitle".ToLower())) tokens["id"] = GetValueFromLine(line);
+                if (line.ToLower().Trim().Contains("AssemblyInformationalVersion".ToLower())) tokens["version"] = GetValueFromLine(line);
+                if (line.ToLower().Trim().Contains("AssemblyVersion".ToLower())) tokens["version"] = GetValueFromLine(line);
+                if (line.ToLower().Trim().Contains("AssemblyCompany".ToLower())) tokens["authors"] = GetValueFromLine(line);
+                if (line.ToLower().Trim().Contains("AssemblyTitle".ToLower())) tokens["title"] = GetValueFromLine(line);
+                if (line.ToLower().Trim().Contains("AssemblyDescription".ToLower())) tokens["description"] = GetValueFromLine(line);
+                if (line.ToLower().Trim().Contains("AssemblyCopyright".ToLower())) tokens["copyright"] = GetValueFromLine(line);
+            }
             return tokens;
         }
 
-        private static bool IsSupported(Project project)
+        private static string GetValueFromLine(string line)
         {
-            var hierarchy = ProjectHelper.GetProjectHierarchy(project);
-
-            if (project == null)
-            {
-                Logger.Log("No or multiple project files selected, select one project.");
-                return false;
-            }
-
-            if (!project.Kind.Equals(CSharpProjectTypeGuid, StringComparison.InvariantCultureIgnoreCase) ||
-                ProjectHelper.IsCpsProject(hierarchy))
-            {
-                Logger.Log("Project type is not supported.");
-                return false;
-            }
-
-            var packagesConfigFile =
-                ProjectHelper.GetFile(Path.GetDirectoryName(project.FileName), PackagesConfigFileName) != null;
-
-            if (packagesConfigFile)
-            {
-                Logger.Log("The packages.config method is not supported, migrate to PackageReference first.");
-                return false;
-            }
-
-            return true;
+            if (line.Contains("(") && line.Contains(")")) return line.Split(')')[0].Split('(')[1].Replace("\"", String.Empty);
+            return string.Empty;
         }
 
         private static XDocument UpdateNamespace(XDocument xDocument, XNamespace xNamespace)
@@ -209,26 +187,26 @@ namespace NuspecGenerator
             return xDocument;
         }
 
-        private static void UpdateNuspecFile(string projectFile, string nuspecFilePath)
+        private static void UpdateNuspecFile(Project project, string nuspecFilePath)
         {
             Logger.Log("Updating .nuspec file...");
-            var package = UpdatePackage(projectFile, nuspecFilePath);
+            var package = UpdatePackage(project, nuspecFilePath);
             GenerateXml(package, nuspecFilePath);
         }
 
-        private static package UpdatePackage(string projectFile, string nuspecFilePath)
+        private static package UpdatePackage(Project project, string nuspecFilePath)
         {
             var xml = XDocument.Load(nuspecFilePath);
             xml = UpdateNamespace(xml, NuspecNamespace);
             var memoryStream = new MemoryStream(Encoding.UTF8.GetBytes(xml.ToString()));
-            var xmlTextReader = new XmlTextReader(memoryStream) {Namespaces = true};
+            var xmlTextReader = new XmlTextReader(memoryStream) { Namespaces = true };
             var xmlSerializer = new XmlSerializer(typeof(package));
-            var tokens = GetTokens(Path.GetDirectoryName(projectFile),
-                new[] {Path.GetFileName(projectFile), AssemblyInfoFileName});
-            var packageReferences = ProjectHelper.GetPackageReferences(projectFile);
+            var tokens = GetTokens(Path.GetDirectoryName(project.FileName),
+                new[] { Path.GetFileName(project.FileName), ProjectHelper.GetAssemblyFileName(project) });
+            var packageReferences = ProjectHelper.GetPackageReferences(project.FileName);
             var dependencies = GetDependencies(packageReferences);
             var packageMetadata = CreatePackageMetadata(tokens, dependencies);
-            var package = (package) xmlSerializer.Deserialize(xmlTextReader);
+            var package = (package)xmlSerializer.Deserialize(xmlTextReader);
             var updatedPackage = UpdatePackage(package, packageMetadata);
 
             return updatedPackage;
@@ -236,38 +214,27 @@ namespace NuspecGenerator
 
         private static package UpdatePackage(package package, packageMetadata packageMetadata)
         {
-            package.metadata.id = string.IsNullOrEmpty(package.metadata.id)
-                ? packageMetadata.id
-                : package.metadata.id;
-
-            package.metadata.version = string.IsNullOrEmpty(package.metadata.version)
-                ? packageMetadata.version
-                : package.metadata.version;
-
-            package.metadata.authors = string.IsNullOrEmpty(package.metadata.authors)
-                ? packageMetadata.authors
-                : package.metadata.authors;
-
-            package.metadata.owners = string.IsNullOrEmpty(package.metadata.owners)
-                ? packageMetadata.owners
-                : package.metadata.owners;
-
-            package.metadata.title = string.IsNullOrEmpty(package.metadata.title)
-                ? packageMetadata.title
-                : package.metadata.title;
-
-            package.metadata.description = string.IsNullOrEmpty(package.metadata.description)
-                ? packageMetadata.description
-                : package.metadata.description;
-
-            package.metadata.copyright = string.IsNullOrEmpty(package.metadata.copyright)
-                ? packageMetadata.copyright
-                : package.metadata.copyright;
+            package.metadata.id = CompareValues(package.metadata.id, packageMetadata.id);
+            package.metadata.version = CompareValues(package.metadata.version, packageMetadata.version);
+            package.metadata.authors = CompareValues(package.metadata.authors, packageMetadata.authors);
+            package.metadata.owners = CompareValues(package.metadata.owners, packageMetadata.owners);
+            package.metadata.title = CompareValues(package.metadata.title, packageMetadata.title);
+            package.metadata.description = CompareValues(package.metadata.description, packageMetadata.description);
+            package.metadata.copyright = CompareValues(package.metadata.copyright, packageMetadata.copyright);
 
             package.metadata.dependencies =
                 packageMetadata?.dependencies?.Items.Length == 0 ? null : packageMetadata?.dependencies;
 
             return package;
+        }
+
+        private static string CompareValues(string oldValue, string newValue)
+        {
+            if(string.IsNullOrEmpty(oldValue)) return string.Empty;
+            if(string.IsNullOrEmpty(newValue))  return string.Empty;
+            if (!oldValue.Equals(newValue)) 
+                return newValue;
+            return oldValue;
         }
     }
 }

@@ -1,24 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
     <Metadata>
-        <Identity Id="bb82e765-ab80-4b8b-a93c-3aa7399ee392" Version="1.0" Language="en-US" Publisher="Afaq Khan" />
+        <Identity Id="bb82e765-ab80-4b8b-a93c-3aa7399ee392" Version="1.101" Language="de-DE" Publisher="Afaq Khan, Axel Wittenberg" />
         <DisplayName>Nuspec Generator</DisplayName>
         <Description xml:space="preserve">Provides the ability to generate nuspec files including dependencies for Non-SDK-style .NET Framework projects with Package References</Description>
         <MoreInfo>https://github.com/afaq-khan/NuspecGenerator</MoreInfo>
         <License>Resources\LICENSE</License>
         <GettingStartedGuide>https://github.com/afaq-khan/NuspecGenerator</GettingStartedGuide>
+        <ReleaseNotes>1.1 expired for Studio 2022 and VB.Net projects</ReleaseNotes>
         <Icon>Resources\icon.png</Icon>
         <PreviewImage>Resources\icon.png</PreviewImage>
         <Tags>nuget, nuspec, generate, update, dependencies, package, references</Tags>
     </Metadata>
     <Installation>
-        <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[16.0, 17.0)" />
+        <InstallationTarget Version="[16.0,18.0)" Id="Microsoft.VisualStudio.Pro">
+            <ProductArchitecture>x86</ProductArchitecture>
+        </InstallationTarget>
+        <InstallationTarget Version="[16.0,18.0)" Id="Microsoft.VisualStudio.Community">
+            <ProductArchitecture>x86</ProductArchitecture>
+        </InstallationTarget>
+        <InstallationTarget Version="[16.0,18.0)" Id="Microsoft.VisualStudio.Pro">
+            <ProductArchitecture>amd64</ProductArchitecture>
+        </InstallationTarget>
+        <InstallationTarget Version="[16.0,18.0)" Id="Microsoft.VisualStudio.Community">
+            <ProductArchitecture>amd64</ProductArchitecture>
+        </InstallationTarget>
     </Installation>
     <Dependencies>
-        <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" d:Source="Manual" Version="[4.5,)" />
+        <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" d:Source="Manual" Version="[4.6.1,)" d:InstallSource="Download" />
     </Dependencies>
     <Prerequisites>
-        <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[16.0,17.0)" DisplayName="Visual Studio core editor" />
+        <Prerequisite Id="Microsoft.Net.Component.4.6.1.SDK" Version="[17.7.33905.399,18.0)" DisplayName=".NET Framework 4.6.1 SDK" />
     </Prerequisites>
     <Assets>
         <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />

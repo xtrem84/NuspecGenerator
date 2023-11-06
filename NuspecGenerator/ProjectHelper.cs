@@ -15,11 +15,13 @@ namespace NuspecGenerator
     [SuppressMessage("Usage", "VSTHRD010:Invoke single-threaded types on Main thread", Justification = "<Pending>")]
     public static class ProjectHelper
     {
+        private static string PackagesConfigFileName = "packages.config";
+
         private static readonly DTE2 Dte2 = GenerateNuspecCommand.Instance.Dte2;
 
         internal static Project GetSelectedProject()
         {
-            var selectedItems = (Array) Dte2.ToolWindows.SolutionExplorer?.SelectedItems;
+            var selectedItems = (Array)Dte2.ToolWindows.SolutionExplorer?.SelectedItems;
 
             return selectedItems!.Cast<UIHierarchyItem>()
                 .Select(i =>
@@ -51,22 +53,59 @@ namespace NuspecGenerator
 
             var packageReferences =
                 (from element in xml.Descendants().Where(e => e.Name.LocalName == "PackageReference")
-                    let include = !string.IsNullOrWhiteSpace(element.Attribute("Include")?.Value)
-                        ? element.Attribute("Include")?.Value
-                        : element.Elements().First(x => x.Name.LocalName == "Include").Value
-                    let version = !string.IsNullOrWhiteSpace(element.Attribute("Version")?.Value)
-                        ? element.Attribute("Version")?.Value
-                        : element.Elements().First(x => x.Name.LocalName == "Version").Value
-                    select new {Include = include, Version = version}).ToList().ToDictionary(x => x.Include, x => x.Version);
+                 let include = !string.IsNullOrWhiteSpace(element.Attribute("Include")?.Value)
+                     ? element.Attribute("Include")?.Value
+                     : element.Elements().First(x => x.Name.LocalName == "Include").Value
+                 let version = !string.IsNullOrWhiteSpace(element.Attribute("Version")?.Value)
+                     ? element.Attribute("Version")?.Value
+                     : element.Elements().First(x => x.Name.LocalName == "Version").Value
+                 select new { Include = include, Version = version }).ToList().ToDictionary(x => x.Include, x => x.Version);
 
             return packageReferences;
         }
 
-        internal static string GetLines(string path, string[] fileNames)
+        internal static List<string> GetLines(string path, string[] fileNames)
         {
-            var lines = fileNames.Aggregate(string.Empty,
-                (current, fileName) => current + File.ReadAllText(GetFile(path, fileName)));
+            var lines = new List<string>();
+            foreach (string fileName in fileNames)
+                lines.AddRange(File.ReadAllLines(GetFile(path, fileName)).ToList());
             return lines;
+        }
+
+        internal static string GetAssemblyFileName(Project project)
+        {
+            return SupportedProjectsManager.GetInstance().GetAssemblyFileNameByProject(project);
+        }
+
+        internal static bool IsSupported(Project project)
+        {
+            var hierarchy = ProjectHelper.GetProjectHierarchy(project);
+
+            if (project == null)
+            {
+                Logger.Log("No or multiple project files selected, select one project.");
+                return false;
+            }
+
+            bool isSupportedGuid = SupportedProjectsManager.GetInstance().CheckProjectIsSupported(project);
+
+            if (!isSupportedGuid || ProjectHelper.IsCpsProject(hierarchy))
+            {
+                Logger.Log("Project type is not supported (only for NetFramework C# & VB.Net)");
+                Logger.Log($"{project.Name} project.kind: {project.Kind}");
+                return false;
+            }
+
+            var packagesConfigFile =
+                ProjectHelper.GetFile(Path.GetDirectoryName(project.FileName), PackagesConfigFileName) != null;
+
+            if (packagesConfigFile)
+            {
+                Logger.Log("The packages.config method is not supported, migrate to PackageReference first.");
+                return false;
+            }
+
+            return true;
         }
 
         internal static IVsHierarchy GetProjectHierarchy(Project project)
